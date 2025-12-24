@@ -30,9 +30,9 @@ def greedy_schedule(
 
             if slot_duration >= task.duration_min:
                 block = ScheduleBlock(
-                    item_id=task.segment_id,
-                    name=task.segment_id,
-                    day=new_plan.day,               # ✅ FIX: missing required field
+                    item_id=task.task_id,
+                    name=task.task_id,
+                    day=new_plan.day,
                     start_min=slot_start,
                     end_min=slot_start + task.duration_min,
                     category=task.category,
