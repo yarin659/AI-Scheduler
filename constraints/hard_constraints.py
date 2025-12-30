@@ -1,25 +1,25 @@
 # constraints/hard_constraints.py
 
 from typing import List, Set
-from models.schedule import DayPlan
+
+from models.schedule import DayPlan, WeekPlan, ScheduleBlock
 from models.task import TaskSegment
-from models.schedule import ScheduleBlock
 
 
+# -------------------------------------------------
+# Day-level hard constraints
+# -------------------------------------------------
 
 def no_overlap_constraint(day_plan: DayPlan) -> bool:
     """
-    Ensures that no two non-fixed blocks overlap in time.
+    Ensures that no two blocks overlap in time within the same day.
     """
 
-    blocks = sorted(day_plan.blocks, key=lambda b: (b.day, b.start_min))
+    blocks = sorted(day_plan.blocks, key=lambda b: b.start_min)
 
     for i in range(len(blocks) - 1):
         current = blocks[i]
         next_block = blocks[i + 1]
-
-        if current.day != next_block.day:
-            continue
 
         if current.end_min > next_block.start_min:
             return False
@@ -29,7 +29,7 @@ def no_overlap_constraint(day_plan: DayPlan) -> bool:
 
 def respects_fixed_events_constraint(day_plan: DayPlan) -> bool:
     """
-    Ensures that scheduled tasks do not overlap with fixed events.
+    Ensures that non-fixed blocks do not overlap fixed blocks.
     """
 
     fixed_blocks = [b for b in day_plan.blocks if b.is_fixed]
@@ -37,35 +37,39 @@ def respects_fixed_events_constraint(day_plan: DayPlan) -> bool:
 
     for task in task_blocks:
         for fixed in fixed_blocks:
-            if task.day != fixed.day:
-                continue
-
-            if not (task.end_min <= fixed.start_min or task.start_min >= fixed.end_min):
+            if not (
+                task.end_min <= fixed.start_min
+                or task.start_min >= fixed.end_min
+            ):
                 return False
 
     return True
 
 
 def deadline_hard_constraint(
-    task_segments,
-    day_plan
+    task_segments: List[TaskSegment],
+    week_plan: WeekPlan
 ) -> bool:
     """
-    Ensures that no task segment is scheduled after its hard deadline.
+    Ensures that no task segment is scheduled after its hard deadline day.
     """
 
-    blocks_by_item = {
-        block.item_id: block
-        for block in day_plan.blocks
-        if not block.is_fixed
-    }
+    blocks_by_segment = {}
+
+    for day in week_plan.days:
+        for block in day.blocks:
+            if not block.is_fixed:
+                blocks_by_segment[block.item_id] = block
 
     for segment in task_segments:
-        block = blocks_by_item.get(segment.segment_id)
+        block = blocks_by_segment.get(segment.segment_id)
         if block is None:
             continue
 
-        if segment.deadline_day is not None and block.day > segment.deadline_day:
+        if (
+            segment.deadline_day is not None
+            and block.day > segment.deadline_day
+        ):
             return False
 
     return True
@@ -77,54 +81,36 @@ def minimum_completion_constraint(
     min_ratio: float = 0.5
 ) -> bool:
     """
-    Ensures that at least a minimum portion of a task is completed.
+    Ensures that at least a minimum portion of task segments are scheduled.
     """
 
     total = len(task_segments)
-    completed = len([
-        s for s in task_segments
-        if s.segment_id in scheduled_segment_ids
-    ])
-
     if total == 0:
         return True
 
+    completed = len(
+        [s for s in task_segments if s.segment_id in scheduled_segment_ids]
+    )
+
     return (completed / total) >= min_ratio
 
-def weekly_sleep_hard_constraint(week_plans, min_sleep_hours=6):
+
+# -------------------------------------------------
+# Week-level hard constraints
+# -------------------------------------------------
+
+def weekly_sleep_hard_constraint(week_plan: WeekPlan) -> bool:
     """
-    Enforces at least one continuous sleep window per 24h period.
+    Enforces that every day contains a fixed sleep block.
+    Sleep is modeled as a hard fixed ScheduleBlock.
     """
 
-    # Collect all blocks with absolute time
-    blocks = []
-    for day_plan in week_plans:
-        for block in day_plan.blocks:
-            if block.is_fixed:
-                continue
-
-            absolute_start = day_plan.day * 1440 + block.start_min
-            absolute_end = day_plan.day * 1440 + block.end_min
-            blocks.append((absolute_start, absolute_end))
-
-    blocks.sort()
-
-    # Check each 24h window
-    for day in range(len(week_plans)):
-        window_start = day * 1440
-        window_end = window_start + 1440
-
-        current = window_start
-        for start, end in blocks:
-            if end <= window_start or start >= window_end:
-                continue
-
-            if start - current >= min_sleep_hours * 60:
-                break
-
-            current = max(current, end)
-
-        if window_end - current < min_sleep_hours * 60:
+    for day in week_plan.days:
+        has_sleep = any(
+            block.is_fixed and block.name.lower() == "sleep"
+            for block in day.blocks
+        )
+        if not has_sleep:
             return False
 
     return True

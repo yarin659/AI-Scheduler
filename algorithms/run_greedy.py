@@ -1,31 +1,24 @@
-from typing import List, Tuple
+# algorithms/run_greedy.py
+
+from typing import List
 from uuid import uuid4
 
 from models.task import Task, TaskSegment
-from models.schedule import DayPlan
-from algorithms.greedy import greedy_schedule
-from algorithms.free_slots import get_free_slots
+from models.schedule import WeekPlan
+from algorithms.weekly_greedy import weekly_greedy_schedule
 
 
-def run_greedy_from_tasks(
-    tasks: List[Task],
-    day: int = 0
-) -> DayPlan:
+def run_weekly_greedy_from_tasks(
+    tasks: List[Task]
+) -> WeekPlan:
     """
-    Adapter function:
-    Converts high-level Tasks into TaskSegments,
-    builds an initial DayPlan,
-    computes free slots,
-    and runs the greedy scheduler.
+    Adapter function (WEEKLY):
+    - Converts high-level Tasks into TaskSegments
+    - Builds an empty WeekPlan
+    - Runs the weekly greedy scheduler
     """
 
-    # 1. Build initial empty day plan
-    day_plan = DayPlan(
-        day=day,
-        blocks=[]
-    )
-
-    # 2. Convert Tasks -> TaskSegments (1 segment per task for now)
+    # 1. Convert Tasks -> TaskSegments
     segments: List[TaskSegment] = []
 
     for task in tasks:
@@ -39,14 +32,13 @@ def run_greedy_from_tasks(
         )
         segments.append(segment)
 
-    # 3. Compute free slots from the empty plan
-    free_slots: List[Tuple[int, int]] = get_free_slots(day_plan)
+    # 2. Build empty week
+    week = WeekPlan()
 
-    # 4. Run greedy scheduler
-    scheduled_plan = greedy_schedule(
-        day_plan=day_plan,
-        tasks=segments,
-        free_slots=free_slots
+    # 3. Run weekly greedy scheduler
+    scheduled_week = weekly_greedy_schedule(
+        week_plan=week,
+        segments=segments
     )
 
-    return scheduled_plan
+    return scheduled_week

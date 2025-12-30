@@ -2,38 +2,43 @@
 
 from typing import List, Dict
 
-from models.schedule import DayPlan
+from models.schedule import WeekPlan
 from models.task import Task, TaskSegment
 from models.user_preferences import UserPreferences
+from utils.sleep import add_sleep_block
 
-from algorithms.greedy import greedy_schedule
-from algorithms.free_slots import get_free_slots
+from algorithms.weekly_greedy import weekly_greedy_schedule
 from algorithms.local_search import simulated_annealing
-
 from constraints.hard_constraints import weekly_sleep_hard_constraint
 
 
-def split_tasks_to_segments(tasks: List[Task]) -> List[TaskSegment]:
+def split_tasks_to_segments(
+    tasks: List[Task],
+    user_preferences: UserPreferences
+) -> List[TaskSegment]:
     """
-    Splits tasks into schedulable task segments.
-    Currently: one segment per task.
+    Splits tasks into weekly task segments according to desired frequency.
     """
 
     segments: List[TaskSegment] = []
 
     for task in tasks:
-        segments.append(
-            TaskSegment(
-                task_id=task.id,
-                segment_id=f"{task.id}_seg",
-                duration_min=task.duration_min,
-                category=task.category,
-                priority=task.priority,
-                deadline_day=None
+        freq = user_preferences.desired_frequencies.get(task.id, 1)
+
+        for i in range(freq):
+            segments.append(
+                TaskSegment(
+                    task_id=task.id,
+                    segment_id=f"{task.id}_seg_{i+1}",
+                    duration_min=task.duration_min,
+                    category=task.category,
+                    priority=task.priority,
+                    deadline_day=None
+                )
             )
-        )
 
     return segments
+
 
 
 def build_weekly_schedule(
@@ -41,51 +46,49 @@ def build_weekly_schedule(
     tasks: List[Task],
     user_preferences: UserPreferences,
     max_retries: int = 10
-):
+) -> WeekPlan:
     """
-    Builds a weekly schedule using:
-    - greedy scheduling per day
-    - simulated annealing per day
-    - global weekly hard constraints (sleep)
+    Builds a WEEKLY schedule using:
+    - weekly greedy initialization
+    - weekly simulated annealing
+    - global weekly hard constraints
     """
 
-    segments = split_tasks_to_segments(tasks)
+    segments = split_tasks_to_segments(tasks, user_preferences)
 
     for _ in range(max_retries):
-        week: List[DayPlan] = []
+        # 1. Build empty week
+        week = WeekPlan()
 
-        for day in range(7):
-            day_plan = DayPlan(day=day, blocks=[])
 
-            # Insert fixed events
-            for event in fixed_events_by_day.get(day, []):
-                day_plan.blocks.append(event.to_block(day))
+        # Inject sleep block into every day
+        for day in week.days:
+            add_sleep_block(day)
 
-            # Compute free slots
-            free_slots = get_free_slots(day_plan, day)
+        # 2. Insert fixed events
+        for day_index, events in fixed_events_by_day.items():
+            day = week.get_day(day_index)
+            for event in events:
+                day.add_block(event.to_block(day_index))
 
-            # Greedy scheduling
-            greedy_plan = greedy_schedule(
-                day_plan=day_plan,
-                tasks=segments,
-                free_slots=free_slots
-            )
+        # 3. Weekly greedy scheduling
+        week = weekly_greedy_schedule(
+            week_plan=week,
+            segments=segments
+        )
 
-            # Local search refinement (SA)
-            optimized_plan = simulated_annealing(
-                initial_plan=greedy_plan,
-                segments=segments,
-                user_preferences=user_preferences,
-                max_iters=1500,
-                start_temp=100.0,
-                cooling_rate=0.997
-            )
+        # 4. Weekly local search optimization
+        week = simulated_annealing(
+            initial_week=week,
+            segments=segments,
+            user_preferences=user_preferences,
+            max_iters=1500,
+            start_temp=100.0,
+            cooling_rate=0.997
+        )
 
-            week.append(optimized_plan)
-
-        # -------- Weekly hard constraints --------
+        # 5. Weekly hard constraints
         if weekly_sleep_hard_constraint(week):
             return week
 
-    # If we failed to find a valid weekly schedule
     return week

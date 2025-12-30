@@ -5,11 +5,27 @@ from models.user_preferences import UserPreferences
 from algorithms.weekly_scheduler import build_weekly_schedule
 
 
+DAY_NAMES = [
+    "Day 0 (Sunday)",
+    "Day 1 (Monday)",
+    "Day 2 (Tuesday)",
+    "Day 3 (Wednesday)",
+    "Day 4 (Thursday)",
+    "Day 5 (Friday)",
+    "Day 6 (Saturday)"
+]
+
+
 def print_week(week):
     print("\n=== WEEKLY SCHEDULE ===\n")
 
-    for day_plan in week:
-        print(f"\n--- Day {day_plan.day} ---")
+    for day_plan in week.days:
+        print(f"\n--- {DAY_NAMES[day_plan.day_index]} ---")
+
+        if not day_plan.blocks:
+            print("No scheduled blocks")
+            continue
+
         for block in sorted(day_plan.blocks, key=lambda b: b.start_min):
             sh, sm = divmod(block.start_min, 60)
             eh, em = divmod(block.end_min, 60)
@@ -34,7 +50,9 @@ def main():
             "project": 3,
             "study_material": 5,
             "assignments": 2
-        }
+        },
+        autonomy_level = "balanced",  # "gentle" / "balanced" / "aggressive"
+        balanced_move_threshold = 30
     )
 
     week = build_weekly_schedule(
