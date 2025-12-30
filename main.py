@@ -3,6 +3,7 @@
 from data.example_input import fixed_events, tasks
 from models.user_preferences import UserPreferences
 from algorithms.weekly_scheduler import build_weekly_schedule
+from utils.locking import lock_block
 
 
 DAY_NAMES = [
@@ -30,9 +31,11 @@ def print_week(week):
             sh, sm = divmod(block.start_min, 60)
             eh, em = divmod(block.end_min, 60)
 
+            lock_mark = " lock" if getattr(block, "is_locked", False) else ""
+
             print(
                 f"{sh:02d}:{sm:02d}-{eh:02d}:{em:02d} | "
-                f"{block.name} [{block.category}]"
+                f"{block.name} [{block.category}]{lock_mark}"
             )
 
 
@@ -51,16 +54,45 @@ def main():
             "study_material": 5,
             "assignments": 2
         },
-        autonomy_level = "balanced",  # "gentle" / "balanced" / "aggressive"
-        balanced_move_threshold = 30
+        autonomy_level="aggressive",   # "gentle" / "balanced" / "aggressive"
+        balanced_move_threshold=30
     )
 
+    # -------------------------------------------------
+    # Build weekly schedule
+    # -------------------------------------------------
     week = build_weekly_schedule(
         fixed_events_by_day=fixed_events_by_day,
         tasks=tasks,
         user_preferences=user_preferences
     )
 
+    # -------------------------------------------------
+    # LOCKING TEST (correct, deterministic)
+    # -------------------------------------------------
+    project_block = None
+
+    for day in week.days:
+        for block in day.blocks:
+            if block.name == "project" and not block.is_fixed:
+                project_block = block
+                break
+        if project_block:
+            break
+
+    if project_block is None:
+        raise RuntimeError("Project block not found for locking test.")
+
+    lock_block(
+        week,
+        day=project_block.day,
+        start_min=project_block.start_min,
+        task_id=project_block.item_id
+    )
+
+    # -------------------------------------------------
+    # Print result
+    # -------------------------------------------------
     print_week(week)
 
 

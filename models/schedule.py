@@ -13,6 +13,7 @@ class ScheduleBlock:
     end_min: int
     category: str
     is_fixed: bool = False
+    is_locked: bool = False
 
 
 class DayPlan:

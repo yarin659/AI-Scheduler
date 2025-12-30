@@ -123,7 +123,7 @@ def _op_move_within_day(week: WeekPlan) -> Optional[WeekPlan]:
     week = clone_week(week)
     day = random.choice(week.days)
 
-    movable = [b for b in day.blocks if not b.is_fixed]
+    movable = [b for b in day.blocks if not b.is_fixed and not b.is_locked]
     if not movable:
         return None
 
@@ -156,7 +156,7 @@ def _op_move_between_days_adjacent_only(week: WeekPlan) -> Optional[WeekPlan]:
     week = clone_week(week)
 
     source_day = random.choice(week.days)
-    movable = [b for b in source_day.blocks if not b.is_fixed]
+    movable = [b for b in source_day.blocks if not b.is_fixed and not b.is_locked]
     if not movable:
         return None
 
@@ -202,7 +202,7 @@ def _op_move_between_days_any(week: WeekPlan) -> Optional[WeekPlan]:
     week = clone_week(week)
 
     source_day = random.choice(week.days)
-    movable = [b for b in source_day.blocks if not b.is_fixed]
+    movable = [b for b in source_day.blocks if not b.is_fixed and not b.is_locked]
     if not movable:
         return None
 
