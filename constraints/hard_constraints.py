@@ -47,32 +47,30 @@ def respects_fixed_events_constraint(day_plan: DayPlan) -> bool:
 
 
 def deadline_hard_constraint(
-    task_segments: List[TaskSegment],
-    week_plan: WeekPlan
+    task_segments,
+    day_plan
 ) -> bool:
     """
-    Ensures that no task segment is scheduled after its hard deadline day.
+    Ensures that no task segment is scheduled after its hard deadline
+    (checked per day).
     """
 
-    blocks_by_segment = {}
-
-    for day in week_plan.days:
-        for block in day.blocks:
-            if not block.is_fixed:
-                blocks_by_segment[block.item_id] = block
+    blocks_by_item = {
+        block.item_id: block
+        for block in day_plan.blocks
+        if not block.is_fixed
+    }
 
     for segment in task_segments:
-        block = blocks_by_segment.get(segment.segment_id)
+        block = blocks_by_item.get(segment.segment_id)
         if block is None:
             continue
 
-        if (
-            segment.deadline_day is not None
-            and block.day > segment.deadline_day
-        ):
+        if segment.deadline_day is not None and block.day > segment.deadline_day:
             return False
 
     return True
+
 
 
 def minimum_completion_constraint(
