@@ -123,3 +123,66 @@ def score_schedule(
     weights = AUTONOMY_WEIGHTS[user_preferences.autonomy_level]
 
     return objective_score.weighted_sum(weights)
+
+def _compute_objectives(
+    week_plan,
+    segments,
+    user_preferences
+):
+    """
+    Internal helper: computes raw ObjectiveScore without weighting.
+    """
+
+    from collections import defaultdict
+    from constraints.soft_constraints import (
+        completion_score,
+        deadline_score,
+        frequency_score,
+        load_balance_score,
+        preferred_time_score,
+        night_work_penalty,
+        daily_load_balance_score,
+        rest_day_bonus,
+        round_time_preference
+    )
+
+    scheduled_segment_ids = set()
+    for day in week_plan.days:
+        for block in day.blocks:
+            if not block.is_fixed:
+                scheduled_segment_ids.add(block.item_id)
+
+    segments_by_task = defaultdict(list)
+    for s in segments:
+        segments_by_task[s.task_id].append(s)
+
+    productivity = 0
+    balance = 0
+    wellbeing = 0
+    preferences = 0
+
+    for task_segments in segments_by_task.values():
+        productivity += completion_score(task_segments, scheduled_segment_ids)
+        productivity += deadline_score(task_segments, week_plan)
+
+        preferences += frequency_score(
+            task_segments, week_plan, user_preferences
+        )
+
+        balance += load_balance_score(task_segments, week_plan)
+
+    for day in week_plan.days:
+        preferences += preferred_time_score(day, user_preferences)
+        wellbeing += night_work_penalty(day)
+        balance += daily_load_balance_score(day)
+        wellbeing += round_time_preference(day)
+
+    wellbeing += rest_day_bonus(week_plan)
+
+    return ObjectiveScore(
+        productivity=productivity,
+        balance=balance,
+        wellbeing=wellbeing,
+        preferences=preferences
+    )
+

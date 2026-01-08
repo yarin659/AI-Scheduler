@@ -54,7 +54,7 @@ def main():
             "study_material": 5,
             "assignments": 2
         },
-        autonomy_level="aggressive",   # "gentle" / "balanced" / "aggressive"
+        autonomy_level="aggressive",   # gentle / balanced / aggressive
         balanced_move_threshold=30
     )
 
@@ -68,28 +68,35 @@ def main():
     )
 
     # -------------------------------------------------
-    # LOCKING TEST (correct, deterministic)
+    # LOCKING TEST — robust & generic
+    # Lock the FIRST non-fixed work block we find
     # -------------------------------------------------
-    project_block = None
+    block_to_lock = None
 
     for day in week.days:
         for block in day.blocks:
-            if block.name == "Core Project Work" and not block.is_fixed:
-                project_block = block
+            if (
+                not block.is_fixed
+                and block.category == "work"
+            ):
+                block_to_lock = block
                 break
-        if project_block:
+        if block_to_lock:
             break
 
-    if project_block:
+    if block_to_lock:
         lock_block(
             week,
-            day=project_block.day,
-            start_min=project_block.start_min,
-            task_id=project_block.item_id
+            day=block_to_lock.day,
+            start_min=block_to_lock.start_min,
+            task_id=block_to_lock.item_id
         )
-        print(" Locked Core Project Work block for testing.")
+        print(
+            f"\n Locked block: {block_to_lock.name} "
+            f"(Day {block_to_lock.day}, {block_to_lock.start_min} min)"
+        )
     else:
-        print(" No Core Project Work block found — skipping locking test.")
+        print("\n No suitable work block found to lock.")
 
     # -------------------------------------------------
     # Print result
