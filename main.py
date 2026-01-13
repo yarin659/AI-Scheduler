@@ -4,6 +4,8 @@ from data.example_input import fixed_events, tasks
 from models.user_preferences import UserPreferences
 from algorithms.weekly_scheduler import build_weekly_schedule
 from utils.locking import lock_block
+from ml.logging.decision_logger import DecisionLogger
+
 
 
 DAY_NAMES = [
@@ -37,6 +39,10 @@ def print_week(week):
                 f"{sh:02d}:{sm:02d}-{eh:02d}:{em:02d} | "
                 f"{block.name} [{block.category}]{lock_mark}"
             )
+
+
+
+
 
 
 def main():
@@ -102,6 +108,24 @@ def main():
     # Print result
     # -------------------------------------------------
     print_week(week)
+
+    logger = DecisionLogger()
+
+    # Simulated feedback: user liked study tasks
+    for day in week.days:
+        for block in day.blocks:
+            if block.category == "study":
+                logger.update_label(
+                    user_id="debug_user",
+                    task_id=block.name,
+                    label=1
+                )
+            elif not block.is_fixed:
+                logger.update_label(
+                    user_id="debug_user",
+                    task_id=block.name,
+                    label=0
+                )
 
 
 if __name__ == "__main__":

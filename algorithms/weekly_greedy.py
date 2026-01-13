@@ -5,6 +5,10 @@ from typing import List
 from models.schedule import WeekPlan, ScheduleBlock
 from models.task import TaskSegment
 from algorithms.free_slots import get_free_slots
+from ml.logging.decision_logger import DecisionLogger
+from ml.features.feature_builder import FeatureBuilder
+
+
 
 
 def weekly_greedy_schedule(
@@ -16,7 +20,7 @@ def weekly_greedy_schedule(
     Each TaskSegment is placed once somewhere in the week.
     Days are chosen by current load (least blocks first).
     """
-
+    decision_logger = DecisionLogger()
     # Sort segments by priority (higher first)
     segments_sorted = sorted(
         segments,
@@ -46,6 +50,14 @@ def weekly_greedy_schedule(
                         end_min=start + segment.duration_min,
                         category=segment.category,
                         is_fixed=False
+                    )
+
+                    features = FeatureBuilder.build(segment, block)
+
+                    decision_logger.log_decision(
+                        user_id="debug_user",
+                        task_id=segment.task_id,
+                        features=features
                     )
 
                     day.add_block(block)
