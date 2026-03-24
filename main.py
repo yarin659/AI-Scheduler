@@ -4,7 +4,7 @@ from data.example_input import fixed_events, tasks
 from models.user_preferences import UserPreferences
 from algorithms.weekly_scheduler import build_weekly_schedule
 from utils.locking import lock_block
-from ml.logging.decision_logger import DecisionLogger
+from ml.decision_logging.decision_logger import DecisionLogger
 
 
 

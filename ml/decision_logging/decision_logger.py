@@ -1,4 +1,4 @@
-# Responsible for logging scheduling decisions for future ML training
+# Responsible for decision_logging scheduling decisions for future ML training
 
 import json
 import time

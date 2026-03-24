@@ -1,5 +1,3 @@
-# constraints/soft_constraints.py
-
 from typing import List, Set
 from collections import defaultdict
 
@@ -16,11 +14,11 @@ def completion_score(
     task_segments: List[TaskSegment],
     scheduled_segment_ids: Set[str]
 ) -> int:
+    if not task_segments:
+        return 0
+
     priority = task_segments[0].priority
     total = len(task_segments)
-
-    if total == 0:
-        return 0
 
     completed = sum(
         1 for s in task_segments if s.segment_id in scheduled_segment_ids
@@ -41,20 +39,21 @@ def deadline_score(
     task_segments: List[TaskSegment],
     week_plan: WeekPlan
 ) -> int:
+    if not task_segments:
+        return 0
+
     priority = task_segments[0].priority
     deadline_day = task_segments[0].deadline_day
 
     if deadline_day is None:
         return 0
 
+    segment_ids = {s.segment_id for s in task_segments}
     scheduled_days = []
 
     for day in week_plan.days:
         for block in day.blocks:
-            if (
-                not block.is_fixed
-                and block.item_id in {s.segment_id for s in task_segments}
-            ):
+            if not block.is_fixed and block.item_id in segment_ids:
                 scheduled_days.append(day.day_index)
 
     if not scheduled_days:
@@ -77,6 +76,9 @@ def frequency_score(
     week_plan: WeekPlan,
     user_preferences: UserPreferences
 ) -> int:
+    if not task_segments:
+        return 0
+
     task_id = task_segments[0].task_id
     priority = task_segments[0].priority
 
@@ -84,14 +86,12 @@ def frequency_score(
     if desired is None:
         return 0
 
+    segment_ids = {s.segment_id for s in task_segments}
     scheduled_days = set()
 
     for day in week_plan.days:
         for block in day.blocks:
-            if (
-                not block.is_fixed
-                and block.item_id in {s.segment_id for s in task_segments}
-            ):
+            if not block.is_fixed and block.item_id in segment_ids:
                 scheduled_days.add(day.day_index)
 
     diff = abs(len(scheduled_days) - desired)
@@ -106,19 +106,18 @@ def load_balance_score(
     task_segments: List[TaskSegment],
     week_plan: WeekPlan
 ) -> int:
-    counts = defaultdict(int)
+    if not task_segments:
+        return 0
+
     priority = task_segments[0].priority
+    segment_ids = {s.segment_id for s in task_segments}
+
+    counts = {day.day_index: 0 for day in week_plan.days}
 
     for day in week_plan.days:
         for block in day.blocks:
-            if (
-                not block.is_fixed
-                and block.item_id in {s.segment_id for s in task_segments}
-            ):
+            if not block.is_fixed and block.item_id in segment_ids:
                 counts[day.day_index] += 1
-
-    if not counts:
-        return 0
 
     imbalance = max(counts.values()) - min(counts.values())
     return -priority * imbalance * 5
@@ -170,10 +169,12 @@ def night_work_penalty(day_plan: DayPlan) -> int:
 
 
 def daily_load_balance_score(day_plan: DayPlan) -> int:
-    if not day_plan.blocks:
+    non_fixed_blocks = [b for b in day_plan.blocks if not b.is_fixed]
+
+    if not non_fixed_blocks:
         return 0
 
-    return -len([b for b in day_plan.blocks if not b.is_fixed]) ** 2
+    return -(len(non_fixed_blocks) ** 2)
 
 
 def round_time_preference(day_plan: DayPlan) -> int:
@@ -204,10 +205,12 @@ def rest_day_bonus(week_plan: WeekPlan) -> int:
             if not block.is_fixed:
                 day_loads[day.day_index] += 1
 
-    for d in range(7):
-        if day_loads.get(d, 0) == 0:
-            return 50
-        if day_loads.get(d, 0) <= 1:
-            return 25
+    loads = [day_loads.get(d, 0) for d in range(7)]
+
+    if any(load == 0 for load in loads):
+        return 50
+
+    if any(load <= 1 for load in loads):
+        return 25
 
     return 0
